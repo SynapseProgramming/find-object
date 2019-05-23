@@ -1,34 +1,13 @@
 /*
-Copyright (c) 2011-2014, Mathieu Labbe - IntRoLab - Universite de Sherbrooke
-All rights reserved.
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are met:
-    * Redistributions of source code must retain the above copyright
-      notice, this list of conditions and the following disclaimer.
-    * Redistributions in binary form must reproduce the above copyright
-      notice, this list of conditions and the following disclaimer in the
-      documentation and/or other materials provided with the distribution.
-    * Neither the name of the Universite de Sherbrooke nor the
-      names of its contributors may be used to endorse or promote products
-      derived from this software without specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
-ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY
-DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
-(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
-ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+Edited by the Japanese Turtle for automated parking
 */
 
 #include <ros/ros.h>
 #include <tf/transform_listener.h>
+#include <tf/transform_broadcaster.h>
 #include <find_object_2d/ObjectsStamped.h>
 #include <QtCore/QString>
+#include <iostream>
 
 class TfExample
 {
@@ -41,7 +20,8 @@ public:
 		pnh.param("map_frame_id", mapFrameId_, mapFrameId_);
 		pnh.param("object_prefix", objFramePrefix_, objFramePrefix_);
 
-		ros::NodeHandle nh;
+
+		nh.getParam("frame_offset", frame_offset);
 		subs_ = nh.subscribe("objectsStamped", 1, &TfExample::objectsDetectedCallback, this);
 	}
 
@@ -78,6 +58,7 @@ public:
 				{
 					// Get transformation from "object_#" frame to target frame "map"
 					// The timestamp matches the one sent over TF
+					//get transform from map frame to dock frame
 					tfListener_.lookupTransform(mapFrameId_, objectFrameId, msg->header.stamp, pose);
 					tfListener_.lookupTransform(msg->header.frame_id, objectFrameId, msg->header.stamp, poseCam);
 				}
@@ -96,21 +77,77 @@ public:
 						objectFrameId.c_str(), msg->header.frame_id.c_str(),
 						poseCam.getOrigin().x(), poseCam.getOrigin().y(), poseCam.getOrigin().z(),
 						poseCam.getRotation().x(), poseCam.getRotation().y(), poseCam.getRotation().z(), poseCam.getRotation().w());
+
+				//update phantom frame transformations
+				tx=pose.getOrigin().x();
+				ty=pose.getOrigin().y();
+			  tz=pose.getOrigin().z();
+        //update phantom frame rotations in quaternions
+		    q_received=pose.getRotation();
+
+
 			}
 		}
-	}
+	} //bracket for objectsDetectedCallback
+       void pub_phantom_frame(){
+       tf::Transform tf_send;
+			 tf_send.setOrigin(tf::Vector3(tx,ty,tz));
+
+			 tf::Quaternion q_send;
+			 q_send=q_received;
+			 tf_send.setRotation(q_send);
+
+       br.sendTransform(tf::StampedTransform(tf_send,ros::Time::now(),mapFrameId_,"phantom_dock"));
+			 pub_dock_goal();
+		 }
+
+		 void pub_dock_goal(){
+		 tf::Transform tf_dock_goal;
+		 //we would want to set the dock goal right in front of the dock.
+		 tf_dock_goal.setOrigin(tf::Vector3(frame_offset,0.0,0.0));
+		 tf::Quaternion q_send;
+		 //we would want to rotate the dock goal frame by 180 degrees(from phantom frame)
+     q_send.setRPY(0,0,3.14159);
+		 tf_dock_goal.setRotation(q_send);
+
+		 br.sendTransform(tf::StampedTransform( tf_dock_goal,ros::Time::now(),"phantom_dock","dock_goal"));
+
+		 }
 
 private:
+	ros::NodeHandle nh;
 	std::string mapFrameId_;
 	std::string objFramePrefix_;
-    ros::Subscriber subs_;
-    tf::TransformListener tfListener_;
+  ros::Subscriber subs_;
+  tf::TransformListener tfListener_;
+	tf::TransformBroadcaster br;
+	double frame_offset;
+
+  double tx,ty,tz;// transformation values.
+  tf::Quaternion q_received;
+
 };
 
 int main(int argc, char * argv[])
 {
     ros::init(argc, argv, "tf_example_node");
+		TfExample sync;
+    ros::Rate loop_rate(10); //we shall send our frames at 10hz
 
-    TfExample sync;
-    ros::spin();
+		while(ros::ok()){
+    sync.pub_phantom_frame();
+
+
+		ros::spinOnce();
+		loop_rate.sleep();
 }
+
+
+
+
+
+
+
+
+
+return 0;}
