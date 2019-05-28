@@ -3,7 +3,7 @@
 	<!-- $roslaunch openni_launch openni.launch depth_registration:=true -->
 
 <rosparam file="$(find find_object_2d)/param/dockgoal_offset.yaml" command="load"/>
-adw
+
 
 	<node name="find_object_3d" pkg="find_object_2d" type="find_object_2d" output="screen">
 		<param name="gui" value="true" type="bool"/>
@@ -24,13 +24,13 @@ adw
 		<param name="object_prefix" value="dock" type="str"/>
 	</node>
 
-	
+
 	<!-- fake some tf frames for the example /map -> /odom -> /base_link -> /camera_link -->
-	<node pkg="tf" type="static_transform_publisher" name="base_to_camera_tf" 
+	<node pkg="tf" type="static_transform_publisher" name="base_to_camera_tf"
 		args="0.1 0.0 0.3 0.0 0.0 0.0 base_link camera_link 100" />
-	<node pkg="tf" type="static_transform_publisher" name="odom_to_base_tf" 
+	<node pkg="tf" type="static_transform_publisher" name="odom_to_base_tf"
 		args="1.0 0.0 0.1 1.5707 0.0 0.0 odom base_link 100" />
-	<node pkg="tf" type="static_transform_publisher" name="map_to_odom_tf" 
+	<node pkg="tf" type="static_transform_publisher" name="map_to_odom_tf"
 		args="0.0 0.5 0.0 0.7853 0.0 0.0 map odom 100" />
-         
+
         </launch>
